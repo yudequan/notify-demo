@@ -19,6 +19,11 @@ public class ChwNotifyController {
     @PostMapping("/receiveNotify")
     public String receiveNotify(@RequestBody NotifyDTO notifyDTO) {
         log.info("[通知{}]程会玩接收开始", notifyDTO.getNotifyId());
+        try {
+            Thread.sleep(4900);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         // log.info("程会玩接收到同程的通知：{}", GsonUtils.toJson(notifyDTO));
         // 异常场景
         try {

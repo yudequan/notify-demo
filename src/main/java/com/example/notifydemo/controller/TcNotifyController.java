@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by dequan.yu on 2020/3/12.
@@ -21,32 +23,44 @@ import java.util.concurrent.Executors;
 public class TcNotifyController {
     public static final MediaType JSON
             = MediaType.get("application/json; charset=utf-8");
-    private OkHttpClient client = new OkHttpClient();
+    private OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build();
 
-    private ExecutorService es = Executors.newCachedThreadPool();
+    private ExecutorService es = new ThreadPoolExecutor(8, 8,
+            0, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(1024));
 
     @PostMapping("/sendNotify")
     public String sendNotify(@org.springframework.web.bind.annotation.RequestBody NotifyDTO notifyDTO) {
         log.info("[通知{}]同程——>程会玩...发送开始", notifyDTO.getNotifyId());
         String json = GsonUtils.toJson(notifyDTO);
 
-        es.execute(() -> {
-            try {
-                String url = "http://localhost:8080/chw/receiveNotify";
-                String result = this.post(url, json);
-                int count = 1;
-                while (!"SUCCESS".equals(result)) {
-                    long second = count * 10;
-                    log.error("[通知{}]同程——>程会玩...result:{}，程会玩接收通知失败，延时{}s后再次发送通知", notifyDTO.getNotifyId(), result, second);
-                    Thread.sleep(second * 1000);
-                    count++;
-                    log.info("[通知{}]同程开始尝试第{}次发送", notifyDTO.getNotifyId(), count);
-                    result = this.post(url, json);
+        try {
+            es.execute(() -> {
+                try {
+                    String url = "http://localhost:8080/chw/receiveNotify";
+                    log.info("[通知{}]同程——>程会玩...【真的】发送开始", notifyDTO.getNotifyId());
+                    String result = this.post(url, json);
+                    int count = 1;
+                    // 返回不成功或者重试次数小于5次
+                    while (!"SUCCESS".equals(result) || count < 6) {
+                        long second = count * 60;
+                        log.error("[通知{}]同程——>程会玩...result:{}，程会玩接收通知失败，延时{}s后再次发送通知", notifyDTO.getNotifyId(), result,
+                                second);
+                        Thread.sleep(second * 1000);
+                        count++;
+                        log.info("[通知{}]同程开始尝试第{}次发送", notifyDTO.getNotifyId(), count);
+                        result = this.post(url, json);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+            });
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+        }
 
         log.info("[通知{}]同程——>程会玩...发送结束", notifyDTO.getNotifyId());
         return "SUCCESS";
@@ -60,6 +74,9 @@ public class TcNotifyController {
                 .build();
         try (Response response = client.newCall(request).execute()) {
             return response.body().string();
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+            return "FAIL";
         }
     }
 }
