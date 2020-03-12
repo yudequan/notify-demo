@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Created by dequan.yu on 2020/3/12.
@@ -21,29 +23,32 @@ public class TcNotifyController {
             = MediaType.get("application/json; charset=utf-8");
     private OkHttpClient client = new OkHttpClient();
 
-    @PostMapping("/sendNotify")
-    public String sendNotify() {
-        log.info("同程——>程会玩...开始");
-        NotifyDTO notifyDTO = new NotifyDTO("支付成功");
-        String json = GsonUtils.toJson(notifyDTO);
-        try {
-            String url = "http://localhost:8080/chw/receiveNotify";
-            String result = this.post(url, json);
-            int count = 1;
-            while (!"SUCCESS".equals(result)) {
-                long second = count * 10;
-                log.error("程会玩接收通知失败，延时{}s后再次发送通知", second);
-                Thread.sleep(second * 1000);
-                count++;
-                log.info("同程开始尝试第{}次发送", count);
-                result = this.post(url, json);
-            }
-            log.info("同程——>程会玩...result:{}", result);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    private ExecutorService es = Executors.newCachedThreadPool();
 
-        log.info("同程——>程会玩...结束");
+    @PostMapping("/sendNotify")
+    public String sendNotify(@org.springframework.web.bind.annotation.RequestBody NotifyDTO notifyDTO) {
+        log.info("[通知{}]同程——>程会玩...发送开始", notifyDTO.getNotifyId());
+        String json = GsonUtils.toJson(notifyDTO);
+
+        es.execute(() -> {
+            try {
+                String url = "http://localhost:8080/chw/receiveNotify";
+                String result = this.post(url, json);
+                int count = 1;
+                while (!"SUCCESS".equals(result)) {
+                    long second = count * 10;
+                    log.error("[通知{}]同程——>程会玩...result:{}，程会玩接收通知失败，延时{}s后再次发送通知", notifyDTO.getNotifyId(), result, second);
+                    Thread.sleep(second * 1000);
+                    count++;
+                    log.info("[通知{}]同程开始尝试第{}次发送", notifyDTO.getNotifyId(), count);
+                    result = this.post(url, json);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        log.info("[通知{}]同程——>程会玩...发送结束", notifyDTO.getNotifyId());
         return "SUCCESS";
     }
 

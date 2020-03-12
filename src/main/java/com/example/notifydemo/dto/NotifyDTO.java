@@ -11,5 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class NotifyDTO {
+    private Integer notifyId;
     private String content;
 }
