@@ -44,8 +44,8 @@ public class TcNotifyController {
                     log.info("[通知{}]同程——>程会玩...【真的】发送开始", notifyDTO.getNotifyId());
                     String result = this.post(url, json);
                     int count = 1;
-                    // 返回不成功或者重试次数小于5次
-                    while (!"SUCCESS".equals(result) || count < 6) {
+                    // 返回不成功并且重试次数小于5次
+                    while (!"SUCCESS".equals(result) && count  < 6) {
                         long second = count * 60;
                         log.error("[通知{}]同程——>程会玩...result:{}，程会玩接收通知失败，延时{}s后再次发送通知", notifyDTO.getNotifyId(), result,
                                 second);
@@ -53,6 +53,10 @@ public class TcNotifyController {
                         count++;
                         log.info("[通知{}]同程开始尝试第{}次发送", notifyDTO.getNotifyId(), count);
                         result = this.post(url, json);
+                    }
+
+                    if (!"SUCCESS".equals(result)) {
+                        log.warn("[通知{}]以达到最大重发次数", notifyDTO.getNotifyId());
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
